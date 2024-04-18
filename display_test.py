@@ -1,5 +1,6 @@
 import pygame
-import os
+import RPi.GPIO as GPIO
+import time
 
 # Initialize Pygame
 pygame.init()
@@ -39,8 +40,31 @@ def show_moisture_level(is_dry):
     
     pygame.display.update()
 
-# Example usage
-show_moisture_level(True)  # Change to False to show "Soil is moist"
+# Configure the Pi to use the BCM (Broadcom) pin names
+GPIO.setmode(GPIO.BCM)
 
-# Pause to view the result (you should use a more sophisticated event loop in practice)
-pygame.time.wait(10000)
+# Pin connected to the sensor's output
+MOISTURE_SENSOR_PIN = 17  # Replace with your GPIO pin
+
+# Set up the pin as an input with a pull-up resistor
+GPIO.setup(MOISTURE_SENSOR_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+try:
+    while True:
+        # Read the sensor (True if dry, False if wet)
+        is_dry = GPIO.input(MOISTURE_SENSOR_PIN)
+        
+        # Show the moisture level on the screen
+        show_moisture_level(is_dry)
+        
+        # Wait for 1 second before reading again
+        time.sleep(1)
+
+except KeyboardInterrupt:
+    print("Program stopped")
+
+finally:
+    # Clean up the GPIO to reset the pin states
+    GPIO.cleanup()
+    pygame.quit()
+
