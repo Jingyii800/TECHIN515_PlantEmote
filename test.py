@@ -24,7 +24,8 @@ def text_objects(text, font):
 def message_display(text):
     largeText = pygame.font.Font('freesansbold.ttf', 20)
     TextSurf, TextRect = text_objects(text, largeText)
-    TextRect.center = ((display_width/2), (display_height/2 + 50))
+    # Adjust the y position to be at the bottom of the screen minus padding
+    TextRect.center = (display_width/2, display_height - 30)
     screen.blit(TextSurf, TextRect)
     pygame.display.update()
 
@@ -60,3 +61,4 @@ except KeyboardInterrupt:
 finally:
     # Cleanup pygame
     pygame.quit()
+
