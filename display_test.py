@@ -8,7 +8,7 @@ pygame.init()
 # Set the display size
 display_width = 480
 display_height = 320
-screen = pygame.display.set_mode((display_width, display_height))
+screen = pygame.display.set_mode((display_width, display_height), pygame.FULLSCREEN)
 
 # Define colors
 black = (0, 0, 0)
@@ -18,6 +18,7 @@ white = (255, 255, 255)
 dry_icon = pygame.image.load('dry.png')
 wet_icon = pygame.image.load('wet.png')
 
+
 def text_objects(text, font):
     textSurface = font.render(text, True, black)
     return textSurface, textSurface.get_rect()
@@ -25,17 +26,17 @@ def text_objects(text, font):
 def message_display(text):
     largeText = pygame.font.Font('freesansbold.ttf', 20)
     TextSurf, TextRect = text_objects(text, largeText)
-    TextRect.center = ((display_width/2), (display_height/2 + 50))
+    TextRect.center = (display_width / 2, display_height - 40)
     screen.blit(TextSurf, TextRect)
     pygame.display.update()
 
 def show_moisture_level(is_dry):
     screen.fill(white)  # Clear the screen
     if is_dry:
-        screen.blit(dry_icon, (display_width/2 - dry_icon.get_width()/2, 50))
+        screen.blit(dry_icon, (display_width / 2 - dry_icon.get_width() / 2, 50))
         message_display("Soil is dry")
     else:
-        screen.blit(wet_icon, (display_width/2 - wet_icon.get_width()/2, 50))
+        screen.blit(wet_icon, (display_width / 2 - wet_icon.get_width() / 2, 50))
         message_display("Soil is moist")
     
     pygame.display.update()
