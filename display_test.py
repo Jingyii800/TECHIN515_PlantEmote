@@ -44,7 +44,7 @@ def show_moisture_level(is_dry):
 GPIO.setmode(GPIO.BCM)
 
 # Pin connected to the sensor's output
-MOISTURE_SENSOR_PIN = 17  # Replace with your GPIO pin
+MOISTURE_SENSOR_PIN = 12  # Replace with your GPIO pin
 
 # Set up the pin as an input with a pull-up resistor
 GPIO.setup(MOISTURE_SENSOR_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
