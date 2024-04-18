@@ -1,4 +1,2 @@
-sudo apt-get update
 sudo apt-get install python3-pygame
 sudo apt-get install python3-rpi.gpio
-hdmi_group=2hdmi_mode=87hdmi_cvt 1024 600 60 6 0 0 0hdmi_drive=1
