@@ -52,6 +52,16 @@ GPIO.setup(MOISTURE_SENSOR_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 try:
     while True:
+        running = True
+        while running:
+            # Check events
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:  # Exit on ESC
+                        running = False
+                        
         # Read the sensor (True if dry, False if wet)
         is_dry = GPIO.input(MOISTURE_SENSOR_PIN)
         
