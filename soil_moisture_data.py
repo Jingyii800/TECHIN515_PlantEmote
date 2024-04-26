@@ -3,7 +3,7 @@ import RPi.GPIO as GPIO
 import time
 
 # Azure IoT Hub settings
-CONNECTION_STRING = "your_device_connection_string"
+CONNECTION_STRING = "HostName=PlantEmote.azure-devices.net;DeviceId=iotdevice-1;SharedAccessKey=pfJGLHdpm1CRY938KfaME0RDeNLNkZMWiAIoTMu3IJY="
 MSG_TXT = '{{"team": "team1", "soil_moisture": {soil_moisture}}}'
 
 # Set up the GPIO with the BCM numbering scheme
