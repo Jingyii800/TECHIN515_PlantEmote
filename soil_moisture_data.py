@@ -3,7 +3,7 @@ import time
 from azure.iot.device import IoTHubDeviceClient, Message
 
 # Azure IoT Hub settings
-CONNECTION_STRING = "your_device_connection_string"
+CONNECTION_STRING = "HostName=PlantEmote.azure-devices.net;DeviceId=iotdevice-1;SharedAccessKey=pfJGLHdpm1CRY938KfaME0RDeNLNkZMWiAIoTMu3IJY="
 MSG_TXT = '{{"team": "team1", "soil_moisture": {soil_moisture}}}'
 
 # Use lgpio for GPIO operations
