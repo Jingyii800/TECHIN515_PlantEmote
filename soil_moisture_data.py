@@ -1,15 +1,15 @@
-from azure.iot.device import IoTHubDeviceClient, Message
-import RPi.GPIO as GPIO
+import lgpio
 import time
+from azure.iot.device import IoTHubDeviceClient, Message
 
 # Azure IoT Hub settings
-CONNECTION_STRING = "HostName=PlantEmote.azure-devices.net;DeviceId=iotdevice-1;SharedAccessKey=pfJGLHdpm1CRY938KfaME0RDeNLNkZMWiAIoTMu3IJY="
+CONNECTION_STRING = "your_device_connection_string"
 MSG_TXT = '{{"team": "team1", "soil_moisture": {soil_moisture}}}'
 
-# Set up the GPIO with the BCM numbering scheme
-GPIO.setmode(GPIO.BCM)
+# Use lgpio for GPIO operations
 MOISTURE_SENSOR_PIN = 17  # GPIO pin number where sensor is connected
-GPIO.setup(MOISTURE_SENSOR_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+h = lgpio.gpiochip_open(0)  # Open gpiochip0
+lgpio.gpio_claim_input(h, MOISTURE_SENSOR_PIN)  # Claim the pin as input
 
 # Create an IoT Hub client
 client = IoTHubDeviceClient.create_from_connection_string(CONNECTION_STRING)
@@ -31,7 +31,7 @@ def send_to_iot_hub(soil_moisture):
 
 def read_soil_moisture():
     # Check the moisture level
-    if GPIO.input(MOISTURE_SENSOR_PIN) == GPIO.LOW:
+    if lgpio.gpio_read(h, MOISTURE_SENSOR_PIN) == 0:  # 0 means wet in this case
         print("Soil is moist")
         send_to_iot_hub(1)  # You can change 1 to a sensor-specific value
     else:
@@ -44,7 +44,6 @@ def read_soil_moisture():
 def main():
     try:
         print("IoT Hub device sending periodic messages, press Ctrl-C to exit")
-        client = IoTHubDeviceClient.create_from_connection_string(CONNECTION_STRING)
         
         while True:
             read_soil_moisture()
@@ -53,7 +52,7 @@ def main():
         print("IoT Hub client stopped")
         
     finally:
-        GPIO.cleanup()
+        lgpio.gpiochip_close(h)
         client.disconnect()
 
 if __name__ == '__main__':
