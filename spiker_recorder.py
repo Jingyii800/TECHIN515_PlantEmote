@@ -6,7 +6,7 @@ import numpy as np
 
 global connected
 connected = False
-port = ''
+port = '\Device\00000231'
 baud = 230400
 global input_buffer
 global sample_buffer
