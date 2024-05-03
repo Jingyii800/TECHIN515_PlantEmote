@@ -3,79 +3,86 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import pyaudio
 import threading
+from scipy.signal import butter, lfilter
 
 # Audio Configuration
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
 RATE = 9600  # Sample rate
 CHUNK = 1024  # Samples per frame
-DISPLAY_SIZE = RATE * 20  # 20 seconds of data at 9600 Hz
+DISPLAY_SIZE = RATE * 20  # 20 seconds of data
 
 # Initialize PyAudio
 p = pyaudio.PyAudio()
 
-# Open audio stream with specified input device
+# Open audio stream
 stream = p.open(format=FORMAT,
                 channels=CHANNELS,
                 rate=RATE,
                 input=True,
                 frames_per_buffer=CHUNK,
-                input_device_index=0)  # Specify your device index here
+                input_device_index=0)  # Audio device index
 
-# Buffer to store differential audio data
-diff_buffer = np.zeros(DISPLAY_SIZE)
+# Buffer for audio data
+audio_buffer = np.zeros(DISPLAY_SIZE)
 
-def moving_average(data, window_size=50):
-    """Compute the moving average of the data."""
-    cumsum_vec = np.cumsum(np.insert(data, 0, 0)) 
-    ma_vec = (cumsum_vec[window_size:] - cumsum_vec[:-window_size]) / window_size
-    return np.concatenate((data[:window_size-1], ma_vec))  # Pad the start with original data
+def butter_lowpass(cutoff, fs, order=5):
+    nyq = 0.5 * fs
+    normal_cutoff = cutoff / nyq
+    b, a = butter(order, normal_cutoff, btype='low', analog=False)
+    return b, a
+
+def butter_highpass(cutoff, fs, order=5):
+    nyq = 0.5 * fs
+    normal_cutoff = cutoff / nyq
+    b, a = butter(order, normal_cutoff, btype='high', analog=False)
+    return b, a
+
+def apply_filter(data, cutoff, fs, type='low', order=5):
+    if type == 'low':
+        b, a = butter_lowpass(cutoff, fs, order=order)
+    elif type == 'high':
+        b, a = butter_highpass(cutoff, fs, order=order)
+    filtered_data = lfilter(b, a, data)
+    return filtered_data
 
 def handle_data(data):
-    """Processes chunks of data just acquired and stores the first difference after smoothing."""
-    global diff_buffer
-    # Apply moving average filter
-    smoothed_data = moving_average(data)
-    # Compute first difference
-    diff_data = np.diff(smoothed_data, prepend=smoothed_data[0])
-    # Roll the buffer to discard the oldest chunk
-    diff_buffer = np.roll(diff_buffer, -len(diff_data))
-    # Insert the new chunk at the end of the buffer
-    diff_buffer[-len(diff_data):] = diff_data
+    """ Process incoming data """
+    global audio_buffer
+    # Apply high-pass filter to remove low-frequency drift
+    filtered_data = apply_filter(data, cutoff=200, fs=RATE, type='high', order=2)
+    # Update the audio buffer with new filtered data
+    audio_buffer = np.roll(audio_buffer, -len(filtered_data))
+    audio_buffer[-len(filtered_data):] = filtered_data
 
 def update_plot(frame):
-    """Update the plot with new data."""
-    line.set_ydata(diff_buffer)
+    """ Update the plot with new audio data """
+    line.set_ydata(audio_buffer)
     return line,
 
 def read_from_stream():
-    """Thread function to continuously read from the audio stream."""
+    """ Continuously read from audio stream """
     while True:
-        data = np.frombuffer(stream.read(CHUNK), dtype=np.int16)
-        handle_data(data)
+        frames = np.frombuffer(stream.read(CHUNK), dtype=np.int16)
+        handle_data(frames)
 
-# Start the audio reading in a separate thread
+# Setup threading for continuous audio reading
 thread = threading.Thread(target=read_from_stream)
 thread.start()
 
-# Setup the matplotlib plot
+# Setup matplotlib plot
 fig, ax = plt.subplots()
 x = np.linspace(-20, 0, num=DISPLAY_SIZE)
 line, = ax.plot(x, np.zeros(DISPLAY_SIZE), '-', lw=1)
-ax.set_ylim(-700, 700)  # Adjusted y-limits to focus on typical differential values
+ax.set_ylim(-700, 700)  # y-axis limits
 
-# Create animation
+# Animate plot updates
 ani = FuncAnimation(fig, update_plot, blit=True, interval=50, repeat=True)
-
 plt.show()
 
-# Clean up on exit
+# Clean up
 stream.stop_stream()
 stream.close()
 p.terminate()
 thread.join()
-
-
-
-
 
