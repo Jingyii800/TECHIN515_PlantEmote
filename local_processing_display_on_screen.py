@@ -52,6 +52,26 @@ stream = p.open(format=FORMAT,
 # Buffer for audio data
 audio_buffer = np.zeros(DISPLAY_SIZE)
 
+def butter_lowpass(cutoff, fs, order=5):
+    nyq = 0.5 * fs
+    normal_cutoff = cutoff / nyq
+    b, a = butter(order, normal_cutoff, btype='low', analog=False)
+    return b, a
+
+def butter_highpass(cutoff, fs, order=5):
+    nyq = 0.5 * fs
+    normal_cutoff = cutoff / nyq
+    b, a = butter(order, normal_cutoff, btype='high', analog=False)
+    return b, a
+
+def apply_filter(data, cutoff, fs, type='low', order=5):
+    if type == 'low':
+        b, a = butter_lowpass(cutoff, fs, order=order)
+    elif type == 'high':
+        b, a = butter_highpass(cutoff, fs, order=order)
+    filtered_data = lfilter(b, a, data)
+    return filtered_data
+
 def send_data_to_azure(filtered_data, soil_status):
     """ Send filtered audio data and soil moisture status to Azure IoT Hub """
     client = IoTHubDeviceClient.create_from_connection_string(CONNECTION_STRING)
