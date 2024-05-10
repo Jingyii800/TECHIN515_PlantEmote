@@ -99,3 +99,18 @@ def data_processing():
 thread = threading.Thread(target=data_processing)
 thread.start()
 
+# Main thread for Pygame
+try:
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    running = False
+        update_display()
+finally:
+    pygame.quit()
+    GPIO.cleanup()
+    thread.join()
