@@ -1,6 +1,6 @@
 body {
     font-family: Arial, sans-serif;
-    background-color: #f5f7f6;
+    background-color: #000000;
     color: #333;
     margin: 0;
     padding: 0;
@@ -40,11 +40,16 @@ main {
     text-align: center;
 }
 
+.content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
 .indicators {
     display: flex;
-    justify-content: center;
-    gap: 2rem;
-    margin-bottom: 2rem;
+    flex-direction: column;
+    gap: 1rem;
 }
 
 .indicator {
@@ -64,7 +69,7 @@ main {
 }
 
 .plant-image {
-    margin: 2rem 0;
+    margin-left: 2rem;
 }
 
 .plant-image img {
@@ -74,5 +79,5 @@ main {
 
 .chart {
     width: 80%;
-    margin: 0 auto;
+    margin: 2rem auto 0;
 }
