@@ -1,3 +1,4 @@
+import threading
 import serial
 import time
 import numpy as np
@@ -5,6 +6,7 @@ from azure.iot.device import IoTHubDeviceClient, Message
 import json
 import pygame
 import RPi.GPIO as GPIO
+from queue import Queue
 
 # Initialize Pygame
 pygame.init()
@@ -17,83 +19,142 @@ screen = pygame.display.set_mode((display_width, display_height))
 # Load and scale icons
 dry_icon = pygame.image.load('dry.png')
 wet_icon = pygame.image.load('wet.png')
-dry_icon = pygame.transform.scale(dry_icon, (100, 100))
-wet_icon = pygame.transform.scale(wet_icon, (100, 100))
+dry_icon = pygame.transform.scale(dry_icon, (display_width, display_height))
+wet_icon = pygame.transform.scale(wet_icon, (display_width, display_height))
+
+# Communication queue for display updates
+display_queue = Queue()
 
 # Configuration parameters
-port = '/dev/ttyUSB0'  # Update with the correct serial port
+port = '/dev/ttyACM0'  # Update with the correct serial port
 baud_rate = 230400  # Set baud rate
 duration = 10  # Duration to read data in seconds
 
 # Azure IoT Hub Configuration
-CONNECTION_STRING = "HostName=PlantEmot.azure-devices.net;DeviceId=IoTDevice1;SharedAccessKey=your_shared_access_key_here"
+CONNECTION_STRING = "HostName=PlantEmote1.azure-devices.net;DeviceId=Device1;SharedAccessKey=sC7GZUGp3D7kEqVbyjHb0K45nN6YXWpD6qFjtlRF8HU="
 
-# Set up GPIO for soil moisture sensor
+# Soil Moisture Sensor Configuration
 GPIO.setmode(GPIO.BCM)
-MOISTURE_SENSOR_PIN = 17  # Assuming GPIO17
+MOISTURE_SENSOR_PIN = 14
 GPIO.setup(MOISTURE_SENSOR_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
-# Set up serial connection
-ser = serial.Serial(port, baud_rate, timeout=1)
-ser.reset_input_buffer()
+def read_serial_data():
+    """Read data from the serial port."""
+    ser = serial.Serial(port, baud_rate, timeout=1)
+    ser.reset_input_buffer()
 
-# Send configuration command to the device
-ser.write(b'conf s:10000;c:1;\n')  # Adjust as necessary based on device requirements
-time.sleep(0.5)  # Give time for the device to respond
+    # Send configuration command to the device
+    ser.write(b'conf s:10000;c:1;\n')  # Adjust as necessary based on device requirements
+    time.sleep(0.5)  # Give time for the device to respond
 
-data = bytearray()
-start_time = time.time()
+    data = bytearray()
+    start_time = time.time()
 
-# Collect data for approximately 10 seconds
-while time.time() - start_time < duration:
-    size = ser.in_waiting
-    if size:
-        data.extend(ser.read(size))
-    time.sleep(0.1)
+    # Collect data for approximately 10 seconds
+    while time.time() - start_time < duration:
+        size = ser.in_waiting
+        if size:
+            data.extend(ser.read(size))
+        time.sleep(0.1)
 
-# Close the serial port
-ser.close()
+    # Close the serial port
+    ser.close()
 
-# Process the data
-result = []
-i = 0
-while i < len(data) - 1:
-    if data[i] > 127:
-        int_out = ((data[i] & 127) << 7)
+    # Process the data
+    result = []
+    i = 0
+    while i < len(data) - 1:
+        if data[i] > 127:
+            int_out = ((data[i] & 127) << 7)
+            i += 1
+            int_out += data[i]
+            result.append(int_out)
         i += 1
-        int_out += data[i]
-        result.append(int_out)
-    i += 1
 
-# Convert result to a numpy array
-result_array = np.array(result)
+    # Convert result to a numpy array
+    result_array = np.array(result)
 
-def send_data_to_azure(signal_data, soil_moisture):
-    """ Send signal and soil moisture data to Azure IoT Hub """
+    return result_array
+
+def send_data_to_azure(signal_data, soil_moisture, chunk_size=1000):
+    """Send signal and soil moisture data to Azure IoT Hub in chunks."""
     client = IoTHubDeviceClient.create_from_connection_string(CONNECTION_STRING)
-    data_json = json.dumps({'signal_data': signal_data.tolist(), 'soil_moisture': soil_moisture})
-    message = Message(data_json)
-    message.content_encoding = "utf-8"
-    message.content_type = "application/json"
-    client.send_message(message)
-    print("Data sent to Azure IoT Hub")
+    data_list = signal_data.tolist()
+    
+    # Split data into chunks and send
+    for i in range(0, len(data_list), chunk_size):
+        chunk = data_list[i:i + chunk_size]
+        data_json = json.dumps({'signal_data': chunk, 'soil_moisture': soil_moisture, 'chunk_index': i // chunk_size})
+        message = Message(data_json)
+        message.content_encoding = "utf-8"
+        message.content_type = "application/json"
+        try:
+            client.send_message(message)
+            print(f"Chunk {i // chunk_size} sent to Azure IoT Hub")
+        except ValueError as e:
+            print(f"Failed to send chunk {i // chunk_size}: {e}")
+    
     client.disconnect()
 
-# Read soil moisture sensor
-is_dry = GPIO.input(MOISTURE_SENSOR_PIN)
+def update_display():
+    while True:
+        is_dry = GPIO.input(MOISTURE_SENSOR_PIN)
+        display_queue.put(is_dry)
+        time.sleep(1)  # Update every second
 
-# Display the appropriate icon
-screen.fill((255, 255, 255))  # Clear screen with white
-if is_dry:
-    screen.blit(dry_icon, (display_width / 2, display_height / 2))
-else:
-    screen.blit(wet_icon, (display_width / 2, display_height / 2))
-pygame.display.update()
+def data_processing():
+    """Background thread for data processing."""
+    while True:
+        # Read soil moisture sensor once
+        is_dry = GPIO.input(MOISTURE_SENSOR_PIN)
 
-# Send data to Azure IoT Hub
-send_data_to_azure(result_array, 'dry' if is_dry else 'wet')
+        # Read serial data
+        signal_data = read_serial_data()
 
-# Clean up
-pygame.quit()
-GPIO.cleanup()
+        # Send data to Azure IoT Hub
+        send_data_to_azure(signal_data, 'dry' if is_dry else 'wet')        
+        
+        # Rest for 1 minute
+        time.sleep(60)
 
+def handle_display():
+    while True:
+        if not display_queue.empty():
+            is_dry = display_queue.get()
+            screen.fill((255, 255, 255))  # Clear the screen with white background
+            if is_dry:
+                screen.blit(dry_icon, (0, 0))
+            else:
+                screen.blit(wet_icon, (0, 0))
+            pygame.display.update()
+
+def main():
+    # Start the background thread for data processing
+    data_thread = threading.Thread(target=data_processing)
+    data_thread.daemon = True  # Ensure the thread exits when the main program exits
+    data_thread.start()
+
+    # Start the thread for real-time soil moisture display updates
+    display_thread = threading.Thread(target=update_display)
+    display_thread.daemon = True
+    display_thread.start()
+
+    try:
+        running = True
+        while running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        running = False
+
+            # Handle Pygame display updates
+            handle_display()
+
+    finally:
+        pygame.quit()
+        GPIO.cleanup()
+
+if __name__ == "__main__":
+    main()
