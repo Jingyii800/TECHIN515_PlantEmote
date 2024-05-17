@@ -5,7 +5,6 @@ import numpy as np
 from azure.iot.device import IoTHubDeviceClient, Message
 import json
 import threading
-import matplotlib.animation as animation
 
 # Azure IoT Hub Configuration
 CONNECTION_STRING = "HostName=PlantEmote1.azure-devices.net;SharedAccessKeyName=iothubowner;SharedAccessKey=VZgcYiUWlnRhHr9R5GMW9/GFVnTUU+42yAIoTDqfxsw="
