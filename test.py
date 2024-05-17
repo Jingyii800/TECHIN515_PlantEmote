@@ -1,64 +1,72 @@
-import pyaudio
-import numpy as np
+import serial
+import time
 import matplotlib.pyplot as plt
-from scipy.signal import butter, lfilter
+import numpy as np
 
-# Audio Configuration
-FORMAT = pyaudio.paInt16
-CHANNELS = 2
-RATE = 9600  # Sample rate
-CHUNK = 1024  # Samples per frame
+# Configuration parameters
+port = 'COM3'  # Update with the correct COM port
+baud_rate = 230400  # Set baud rate
+duration = 10  # Duration to read data in seconds
 
-def butter_highpass(cutoff, fs, order=5):
-    """ Create a highpass filter """
-    nyq = 0.5 * fs
-    normal_cutoff = cutoff / nyq
-    b, a = butter(order, normal_cutoff, btype='high', analog=False)
-    return b, a
+# Set up serial connection
+ser = serial.Serial(port, baud_rate, timeout=1)
+ser.reset_input_buffer()
 
-def apply_filter(data, cutoff, fs, order=5):
-    """ Apply a highpass filter to the data """
-    b, a = butter_highpass(cutoff, fs, order)
-    filtered_data = lfilter(b, a, data)
-    return filtered_data
+# Send configuration command to the device
+ser.write(b'conf s:10000;c:1;\n')  # Adjust as necessary based on device requirements
 
-def audio_stream():
-    p = pyaudio.PyAudio()
-    stream = p.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK, input_device_index=1)
+time.sleep(0.5)  # Give some time for the device to respond and start sending data
 
-    # Initialize Matplotlib for real-time plotting
-    plt.ion()
-    fig, ax = plt.subplots()
-    x = np.arange(0, CHUNK)
-    line_left, = ax.plot(x, np.random.rand(CHUNK), label='Left Channel')
-    line_right, = ax.plot(x, np.random.rand(CHUNK), label='Right Channel')
-    ax.set_ylim(-9600, 9600)
-    ax.set_xlim(0, CHUNK)
-    ax.legend()
-    fig.show()
+data = bytearray()
+start_time = time.time()
 
-    try:
-        while True:
-            frames = np.frombuffer(stream.read(CHUNK), dtype=np.int16)
-            frames = frames.reshape(-1, 2)  # Reshape to (CHUNK, CHANNELS)
-            left_channel = frames[:, 0]
-            right_channel = frames[:, 1]
-            
-            filtered_left = apply_filter(left_channel, cutoff=200, fs=RATE, order=2)
-            filtered_right = apply_filter(right_channel, cutoff=200, fs=RATE, order=2)
-            
-            # Update Matplotlib plot
-            line_left.set_ydata(filtered_left)
-            line_right.set_ydata(filtered_right)
-            fig.canvas.draw()
-            fig.canvas.flush_events()
-    except KeyboardInterrupt:
-        print("Interrupted")
-    finally:
-        stream.close()
-        p.terminate()
+# Collect data for approximately 10 seconds
+while time.time() - start_time < duration:
+    size = ser.in_waiting
+    if size:
+        data.extend(ser.read(size))
+    time.sleep(0.1)  # Short delay to avoid hogging the CPU
 
-if __name__ == "__main__":
-    audio_stream()
+# Close the serial port
+ser.close()
 
+# Process the data
+# Eliminate 'StartUp!' string and new line characters (if present)
+start_up_index = data.find(b'StartUp!') + 10
+data = data[start_up_index:] if start_up_index >= 10 else data
+
+# Unpack the data from frames
+result = []
+i = 0
+found_beginning_of_frame = False
+
+while i < len(data) - 1:
+    if not found_beginning_of_frame:
+        # Frame begins with MSB set to 1
+        if data[i] > 127:
+            found_beginning_of_frame = True
+            # Extract one sample from 2 bytes
+            int_out = ((data[i] & 127) << 7)
+            i += 1
+            int_out += data[i]
+            result.append(int_out)
+    else:
+        # Extract one sample from 2 bytes
+        int_out = ((data[i] & 127) << 7)
+        i += 1
+        int_out += data[i]
+        result.append(int_out)
+    i += 1
+
+# Convert result to a numpy array for better handling
+result_array = np.array(result)
+
+# Plot the data
+plt.figure(figsize=(10, 5))
+plt.plot(result_array, label='EEG or EKG Signal from SpikerShield')
+plt.title('Signal from Plant SpikerShield')
+plt.xlabel('Sample Index')
+plt.ylabel('Signal Amplitude')
+plt.legend()
+plt.show()
 
