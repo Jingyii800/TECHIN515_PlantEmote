@@ -67,6 +67,7 @@ plt.plot(result_array, label='EEG or EKG Signal from SpikerShield')
 plt.title('Signal from Plant SpikerShield')
 plt.xlabel('Sample Index')
 plt.ylabel('Signal Amplitude')
+plt.ylim(0, 1000)  # Set y-axis range
 plt.legend()
 plt.show()
 
