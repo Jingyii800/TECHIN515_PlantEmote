@@ -9,43 +9,27 @@
 <body>
     <header>
         <h1>PlantEmote</h1>
-        <!-- <nav>
-            <ul>
-                <li><a href="#">Home</a></li>
-                <li><a href="#">Month</a></li>
-                <li><a href="#">About</a></li>
-            </ul>
-        </nav>  -->
     </header>
     <main>
         <h2>Mimosa</h2>
         <div class="content">
-            <div class="indicators">
-                <div class="indicator">
-                    <div class="circle">
-                        <span>25°C</span>
-                    </div>
-                    <label>Temp</label>
+            <div class="left">
+                <div class="water-status">
+                    <div id="waterCircle" class="circle"></div>
+                    <span id="waterStatusText">I feel good</span>
                 </div>
-                <div class="indicator">
-                    <div class="circle">
-                        <span>59%</span>
-                    </div>
-                    <label>Soil Moisture</label>
+                <div class="chart">
+                    <canvas id="lineChart"></canvas>
                 </div>
-                <div class="indicator">
-                    <div class="circle">
-                        <span>76%</span>
-                    </div>
-                    <label>Humid</label>
+                <div class="gallery">
+                    <img src="image1.jpg" alt="AI generated image 1">
+                    <img src="image1.jpg" alt="AI generated image 2">
+                    <img src="image1.jpg" alt="AI generated image 3">
                 </div>
             </div>
             <div class="plant-image">
                 <img src="mimosa.png" alt="Mimosa">
             </div>
-        </div>
-        <div class="chart">
-            <canvas id="lineChart"></canvas>
         </div>
     </main>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
