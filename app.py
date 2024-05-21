@@ -76,23 +76,26 @@ def read_serial_data():
 
     return result_array
 
-def send_data_to_azure(signal_data, soil_moisture, chunk_size=1000):
+def send_data_to_azure(signal_data, soil_moisture, downsample_factor=10):
     """Send signal and soil moisture data to Azure IoT Hub in chunks."""
     client = IoTHubDeviceClient.create_from_connection_string(CONNECTION_STRING)
-    data_list = signal_data.tolist()
     
-    # Split data into chunks and send
-    for i in range(0, len(data_list), chunk_size):
-        chunk = data_list[i:i + chunk_size]
-        data_json = json.dumps({'signal_data': chunk, 'soil_moisture': soil_moisture, 'chunk_index': i // chunk_size})
-        message = Message(data_json)
-        message.content_encoding = "utf-8"
-        message.content_type = "application/json"
-        try:
-            client.send_message(message)
-            print(f"Chunk {i // chunk_size} sent to Azure IoT Hub")
-        except ValueError as e:
-            print(f"Failed to send chunk {i // chunk_size}: {e}")
+    # Downsample the data
+    downsampled_data = signal_data[::downsample_factor]
+    data_list = downsampled_data.tolist()
+    
+    data_json = json.dumps
+    ({'signal_data': data_list, 
+      'soil_moisture': soil_moisture})
+    
+    message = Message(data_json)
+    message.content_encoding = "utf-8"
+    message.content_type = "application/json"
+    try:
+        client.send_message(message)
+        print("Data sent to Azure IoT Hub")
+    except ValueError as e:
+        print(f"Failed to send data: {e}")
     
     client.disconnect()
 
