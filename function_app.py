@@ -17,7 +17,8 @@ def dataProcess(azeventhub: func.EventHubEvent):
     # Decode the message and convert from JSON
     message_body = azeventhub.get_body().decode('utf-8')
     data = json.loads(message_body)
-    signal_data = np.array(data['signal'])
+    signal_data = np.array(data['signal_data'])
+    soil_moisture = data['soil_moisture']
     sample_rate = data.get('sample_rate', 1000)  # Default sample rate if not provided
     index = data.get('index', datetime.datetime.now().strftime("%Y%m%d%H%M%S"))  # Use current timestamp if index not provided
 
@@ -35,6 +36,11 @@ def dataProcess(azeventhub: func.EventHubEvent):
     art_buffer = generate_artistic_image(signal_data)
     art_blob_name = f'{index}_artistic_image.png'
     upload_blob(blob_service_client, container_name, art_blob_name, art_buffer)
+
+    # upload soil moisture data
+    soil_moisture_data = json.dumps({'soil_moisture': soil_moisture})
+    soil_moisture_blob_name = f'{index}_soil_moisture.json'
+    upload_blob_json(blob_service_client, container_name, soil_moisture_blob_name, soil_moisture_data)
 
 def generate_plot(data, sample_rate):
     # Calculate the time vector based on the sample rate
@@ -66,3 +72,8 @@ def upload_blob(blob_service_client, container_name, blob_name, buffer):
     blob_client.upload_blob(buffer.getvalue(), overwrite=True)
     buffer.close()
     logging.info(f"{blob_name} uploaded to Azure Blob Storage.")
+
+def upload_blob_json(blob_service_client, container_name, blob_name, data):
+    blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
+    blob_client.upload_blob(data, blob_type="BlockBlob", overwrite=True)
+    logging.info(f"{blob_name} (JSON) uploaded to Azure Blob Storage.")

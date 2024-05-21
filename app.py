@@ -31,7 +31,7 @@ baud_rate = 230400  # Set baud rate
 duration = 10  # Duration to read data in seconds
 
 # Azure IoT Hub Configuration
-CONNECTION_STRING = "HostName=PlantEmote1.azure-devices.net;DeviceId=Device1;SharedAccessKey=sC7GZUGp3D7kEqVbyjHb0K45nN6YXWpD6qFjtlRF8HU="
+CONNECTION_STRING = "HostName=PlantEmot.azure-devices.net;DeviceId=IoTDevice1;SharedAccessKey=qa8Fn6cRYs+CfBleDLRhdLB1t/LmUF/1BAIoTFqnrmA="
 
 # Soil Moisture Sensor Configuration
 GPIO.setmode(GPIO.BCM)
