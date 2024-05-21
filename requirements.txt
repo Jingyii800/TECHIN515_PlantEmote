@@ -4,3 +4,4 @@ azure-functions
 azure-storage-blob
 matplotlib
 numpy
+psycopg2-binary
