@@ -1,2 +1,6 @@
 azure-functions
 psycopg2-binary
+azure-functions
+azure-storage-blob
+matplotlib
+numpy
