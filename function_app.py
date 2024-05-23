@@ -1,3 +1,4 @@
+import os
 import azure.functions as func
 import logging
 import json
@@ -7,7 +8,6 @@ import io
 from azure.storage.blob import BlobServiceClient, BlobClient
 import psycopg2
 from datetime import datetime
-import os
 
 app = func.FunctionApp()
 
@@ -81,8 +81,9 @@ def store_in_postgresql(index, signal_data, soil_moisture, standard_plot_url, ar
         raise ValueError("DATABASE_URL is not set or is empty.")
     conn = psycopg2.connect(connection_string)
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO telemetry_data (index, signal_data, soil_moisture, standard_plot_url, artistic_image_url) VALUES (%s, %s, %s, %s, %s)",
-                   (index, signal_data.tolist(), soil_moisture, standard_plot_url, artistic_image_url))
+    signal_data_json = json.dumps(signal_data.tolist())
+    cursor.execute("INSERT INTO telemetry_data (index, signal_data, soil_moisture, standard_plot_url, artistic_image_url) VALUES (%s, %s, %s, %s, %s, %s)",
+                   (index, signal_data_json, soil_moisture, standard_plot_url, artistic_image_url))
     conn.commit()
     cursor.close()
     conn.close()
