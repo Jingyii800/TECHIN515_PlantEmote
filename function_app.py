@@ -82,7 +82,7 @@ def store_in_postgresql(index, signal_data, soil_moisture, standard_plot_url, ar
     conn = psycopg2.connect(connection_string)
     cursor = conn.cursor()
     signal_data_json = json.dumps(signal_data.tolist())
-    cursor.execute("INSERT INTO telemetry_data (index, signal_data, soil_moisture, standard_plot_url, artistic_image_url) VALUES (%s, %s, %s, %s, %s, %s)",
+    cursor.execute("INSERT INTO telemetry_data (index, signal_data, soil_moisture, standard_plot_url, artistic_image_url) VALUES (%s, %s, %s, %s, %s)",
                    (index, signal_data_json, soil_moisture, standard_plot_url, artistic_image_url))
     conn.commit()
     cursor.close()
