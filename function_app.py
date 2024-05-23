@@ -8,6 +8,8 @@ import io
 from azure.storage.blob import BlobServiceClient, BlobClient
 import psycopg2
 from datetime import datetime
+from azure.iot.hub import IoTHubRegistryManager
+from azure.iot.device import Message
 
 app = func.FunctionApp()
 
@@ -44,6 +46,9 @@ def dataProcess(azeventhub: func.EventHubEvent):
 
     # Store data in PostgreSQL
     store_in_postgresql(index, signal_data, soil_moisture, standard_plot_url, artistic_image_url)
+
+    # Send the artistic image URL to the Raspberry Pi via IoT Hub
+    send_image_to_raspberry_pi(artistic_image_url)
 
 def generate_plot(data, sample_rate):
     time_vector = np.linspace(0, 10, num=len(data))
@@ -88,3 +93,20 @@ def store_in_postgresql(index, signal_data, soil_moisture, standard_plot_url, ar
     cursor.close()
     conn.close()
     logging.info("Data and URLs stored in PostgreSQL database.")
+
+def send_image_to_raspberry_pi(image_url):
+    IOTHUB_CONNECTION_STRING = os.getenv("IOTHUB_CONNECTION_STRING")
+    DEVICE_ID = "IoTDevice1"
+
+    if not IOTHUB_CONNECTION_STRING:
+        raise ValueError("IOTHUB_CONNECTION_STRING is not set or is empty.")
+
+    try:
+        registry_manager = IoTHubRegistryManager(IOTHUB_CONNECTION_STRING)
+        message = Message(json.dumps({'image_url': image_url}))
+        message.content_encoding = "utf-8"
+        message.content_type = "application/json"
+        registry_manager.send_c2d_message(DEVICE_ID, message)
+        logging.info("Artistic image URL sent to Raspberry Pi successfully.")
+    except Exception as e:
+        logging.error(f"Failed to send image URL to Raspberry Pi: {e}")

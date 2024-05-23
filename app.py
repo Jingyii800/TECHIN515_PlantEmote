@@ -7,6 +7,9 @@ import json
 import pygame
 import RPi.GPIO as GPIO
 from queue import Queue
+import requests
+from io import BytesIO
+
 
 # Initialize Pygame
 pygame.init()
@@ -132,13 +135,37 @@ def data_processing():
 def handle_display():
     while True:
         if not display_queue.empty():
-            is_dry = display_queue.get()
+            status, image = display_queue.get()
             screen.fill((255, 255, 255))  # Clear the screen with white background
-            if is_dry:
-                screen.blit(dry_icon, (0, 0))
+            if image:
+                screen.blit(image, (0, 0))
             else:
-                screen.blit(wet_icon, (0, 0))
+                if status == 'dry':
+                    screen.blit(dry_icon, (0, 0))
+                else:
+                    screen.blit(wet_icon, (0, 0))
             pygame.display.update()
+
+
+def iot_message_listener():
+    """Listener for IoT Hub messages."""
+    client = IoTHubDeviceClient.create_from_connection_string(CONNECTION_STRING)
+
+    def message_handler(message):
+        try:
+            message_data = json.loads(message.data)
+            image_url = message_data.get('image_url')
+            if image_url:
+                response = requests.get(image_url)
+                image = pygame.image.load(BytesIO(response.content))
+                image = pygame.transform.scale(image, (display_width, display_height))
+                display_queue.put((None, image))
+        except Exception as e:
+            print(f"Failed to process message: {e}")
+
+    client.on_message_received = message_handler
+    client.connect()
+
 
 def main():
     # Start the background thread for data processing
@@ -150,6 +177,12 @@ def main():
     display_thread = threading.Thread(target=update_display)
     display_thread.daemon = True
     display_thread.start()
+
+    # Start the thread for IoT message listening
+    iot_listener_thread = threading.Thread(target=iot_message_listener)
+    iot_listener_thread.daemon = True
+    iot_listener_thread.start()
+
 
     try:
         running = True
