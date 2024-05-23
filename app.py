@@ -114,7 +114,7 @@ def send_data_to_azure(signal_data, soil_moisture, downsample_factor=100):
 def update_display():
     while True:
         is_dry = GPIO.input(MOISTURE_SENSOR_PIN)
-        display_queue.put(is_dry)
+        display_queue.put(('dry' if is_dry else 'wet', None))
         time.sleep(1)  # Update every second
 
 def data_processing():

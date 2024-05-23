@@ -95,7 +95,7 @@ def store_in_postgresql(index, signal_data, soil_moisture, standard_plot_url, ar
     logging.info("Data and URLs stored in PostgreSQL database.")
 
 def send_image_to_raspberry_pi(image_url):
-    IOTHUB_CONNECTION_STRING = os.getenv("IOTHUB_CONNECTION_STRING")
+    IOTHUB_CONNECTION_STRING = os.getenv("IOT_SEND_DATA_CONNECTION_STRING")
     DEVICE_ID = "IoTDevice1"
 
     if not IOTHUB_CONNECTION_STRING:
