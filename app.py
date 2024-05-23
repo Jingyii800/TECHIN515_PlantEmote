@@ -76,9 +76,10 @@ def read_serial_data():
 
     return result_array
 
-def send_data_to_azure(signal_data, soil_moisture, downsample_factor=10):
+def send_data_to_azure(signal_data, soil_moisture, downsample_factor=100):
     """Send signal and soil moisture data to Azure IoT Hub in chunks."""
     client = IoTHubDeviceClient.create_from_connection_string(CONNECTION_STRING)
+
     # Downsample the data
     downsampled_data = signal_data[::downsample_factor]
     data_list = downsampled_data.tolist()
