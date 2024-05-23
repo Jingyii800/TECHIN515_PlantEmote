@@ -7,6 +7,7 @@ import io
 from azure.storage.blob import BlobServiceClient, BlobClient
 import psycopg2
 from datetime import datetime
+import os
 
 app = func.FunctionApp()
 
@@ -25,7 +26,9 @@ def dataProcess(azeventhub: func.EventHubEvent):
     index = data.get('index', datetime.now().strftime("%Y%m%d%H%M%S"))
 
     # Azure Blob Storage setup
-    connect_str = "AZURE_STORAGE_CONNECTION_STRING"
+    connect_str = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+    if not connect_str:
+        raise ValueError("AZURE_STORAGE_CONNECTION_STRING is not set or is empty.")
     container_name = "plantemot"
     blob_service_client = BlobServiceClient.from_connection_string(connect_str)
 
@@ -73,10 +76,12 @@ def upload_blob(blob_service_client, container_name, blob_name, buffer):
     return blob_url
 
 def store_in_postgresql(index, signal_data, soil_moisture, standard_plot_url, artistic_image_url):
-    connection_string = "DATABASE_URL"
+    connection_string = os.getenv("DATABASE_URL")
+    if not connection_string:
+        raise ValueError("DATABASE_URL is not set or is empty.")
     conn = psycopg2.connect(connection_string)
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO telemetry_data (index, signal_data, soil_moisture, standard_plot_url, artistic_image_url) VALUES (%s, %s, %s, %s, %s, %s)",
+    cursor.execute("INSERT INTO telemetry_data (index, signal_data, soil_moisture, standard_plot_url, artistic_image_url) VALUES (%s, %s, %s, %s, %s)",
                    (index, signal_data.tolist(), soil_moisture, standard_plot_url, artistic_image_url))
     conn.commit()
     cursor.close()
