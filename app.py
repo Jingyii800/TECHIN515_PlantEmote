@@ -38,66 +38,75 @@ GPIO.setmode(GPIO.BCM)
 MOISTURE_SENSOR_PIN = 14
 GPIO.setup(MOISTURE_SENSOR_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
-def read_serial_data():
+def read_serial_data(port, baud_rate, duration=10):
     """Read data from the serial port."""
-    ser = serial.Serial(port, baud_rate, timeout=1)
-    ser.reset_input_buffer()
+    try:
+        ser = serial.Serial(port, baud_rate, timeout=1)
+        ser.reset_input_buffer()
 
-    # Send configuration command to the device
-    ser.write(b'conf s:10000;c:1;\n')  # Adjust as necessary based on device requirements
-    time.sleep(0.5)  # Give time for the device to respond
+        # Send configuration command to the device
+        ser.write(b'conf s:10000;c:1;\n')  # Adjust as necessary based on device requirements
+        time.sleep(0.5)  # Give time for the device to respond
 
-    data = bytearray()
-    start_time = time.time()
+        data = bytearray()
+        start_time = time.time()
 
-    # Collect data for approximately 10 seconds
-    while time.time() - start_time < duration:
-        size = ser.in_waiting
-        if size:
-            data.extend(ser.read(size))
-        time.sleep(0.1)
+        # Collect data for approximately 10 seconds
+        while time.time() - start_time < duration:
+            size = ser.in_waiting
+            if size:
+                data.extend(ser.read(size))
+            time.sleep(0.1)
 
-    # Close the serial port
-    ser.close()
+        # Close the serial port
+        ser.close()
 
-    # Process the data
-    result = []
-    i = 0
-    while i < len(data) - 1:
-        if data[i] > 127:
-            int_out = ((data[i] & 127) << 7)
+        # Process the data
+        result = []
+        i = 0
+        while i < len(data) - 1:
+            if data[i] > 127:
+                int_out = ((data[i] & 127) << 7)
+                i += 1
+                int_out += data[i]
+                result.append(int_out)
             i += 1
-            int_out += data[i]
-            result.append(int_out)
-        i += 1
 
-    # Convert result to a numpy array
-    result_array = np.array(result)
+        # Convert result to a numpy array
+        result_array = np.array(result)
 
-    return result_array
+        return result_array
+    
+    except serial.SerialException as e:
+        print(f"Error reading from serial port: {e}")
+        return np.array([])
 
 def send_data_to_azure(signal_data, soil_moisture, downsample_factor=100):
     """Send signal and soil moisture data to Azure IoT Hub in chunks."""
-    client = IoTHubDeviceClient.create_from_connection_string(CONNECTION_STRING)
-
-    # Downsample the data
-    downsampled_data = signal_data[::downsample_factor]
-    data_list = downsampled_data.tolist()
-    
-    data_json = json.dumps
-    ({'signal_data': data_list, 
-      'soil_moisture': soil_moisture})
-    
-    message = Message(data_json)
-    message.content_encoding = "utf-8"
-    message.content_type = "application/json"
     try:
+        client = IoTHubDeviceClient.create_from_connection_string(CONNECTION_STRING)
+
+        # Downsample the data
+        downsampled_data = signal_data[::downsample_factor]
+        data_list = downsampled_data.tolist()
+        
+        data_json = json.dumps({
+            'signal_data': data_list,
+            'soil_moisture': soil_moisture
+        })
+        
+        message = Message(data_json)
+        message.content_encoding = "utf-8"
+        message.content_type = "application/json"
+        
         client.send_message(message)
         print("Data sent to Azure IoT Hub")
+    
     except ValueError as e:
         print(f"Failed to send data: {e}")
     
-    client.disconnect()
+    finally:
+        client.disconnect()
 
 def update_display():
     while True:
@@ -112,7 +121,7 @@ def data_processing():
         is_dry = GPIO.input(MOISTURE_SENSOR_PIN)
 
         # Read serial data
-        signal_data = read_serial_data()
+        signal_data = read_serial_data(port, baud_rate)
 
         # Send data to Azure IoT Hub
         send_data_to_azure(signal_data, 'dry' if is_dry else 'wet')        
@@ -161,3 +170,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
