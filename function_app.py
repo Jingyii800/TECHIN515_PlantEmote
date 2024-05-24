@@ -60,16 +60,12 @@ def generate_plot(data, sample_rate):
     time_vector = np.linspace(0, 10, num=len(data))
     plt.figure()
     plt.plot(time_vector, data, color='darkgreen')
+    plt.ylim(0, 1000)  # Set y-axis limits
     plt.xlabel('Time (seconds)')
     plt.ylabel('Amplitude')
-    
-    ax = plt.gca()
-    ax.spines['left'].set_color('#E4EFE1')
-    ax.spines['bottom'].set_color('#E4EFE1')
-    ax.spines['left'].set_color('#E4EFE1')
-    ax.spines['bottom'].set_color('#E4EFE1')
-    ax.patch.set_alpha(0)  # Set background to transparent
-
+    plt.gca().spines['left'].set_color('#E4EFE1')
+    plt.gca().spines['bottom'].set_color('#E4EFE1')
+    plt.gca().patch.set_alpha(0)  # Set background to transparent
     buffer = io.BytesIO()
     plt.savefig(buffer, format='png', transparent=True)
     buffer.seek(0)
