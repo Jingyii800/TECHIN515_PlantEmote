@@ -2,14 +2,13 @@ import threading
 import serial
 import time
 import numpy as np
-from azure.iot.device import IoTHubDeviceClient, Message
+from azure.iot.device import IoTHubDeviceClient, Message, exceptions
 import json
 import pygame
 import RPi.GPIO as GPIO
 from queue import Queue
 import requests
 from io import BytesIO
-
 
 # Initialize Pygame
 pygame.init()
@@ -86,9 +85,9 @@ def read_serial_data(port, baud_rate, duration=10):
 
 def send_data_to_azure(signal_data, soil_moisture, downsample_factor=100):
     """Send signal and soil moisture data to Azure IoT Hub in chunks."""
-    try:
-        client = IoTHubDeviceClient.create_from_connection_string(CONNECTION_STRING)
+    client = IoTHubDeviceClient.create_from_connection_string(CONNECTION_STRING)
 
+    try:
         # Downsample the data
         downsampled_data = signal_data[::downsample_factor]
         data_list = downsampled_data.tolist()
@@ -101,9 +100,22 @@ def send_data_to_azure(signal_data, soil_moisture, downsample_factor=100):
         message = Message(data_json)
         message.content_encoding = "utf-8"
         message.content_type = "application/json"
-        
-        client.send_message(message)
-        print("Data sent to Azure IoT Hub")
+
+        retries = 0
+        max_retries = 5
+        retry_delay = 2
+
+        while retries < max_retries:
+            try:
+                client.send_message(message)
+                print("Data sent to Azure IoT Hub")
+                break  # Exit the retry loop if the message is sent successfully
+            except (exceptions.ConnectionDroppedError, exceptions.ClientError) as e:
+                retries += 1
+                print(f"Connection error: {e}. Retrying ({retries}/{max_retries})...")
+                time.sleep(retry_delay)
+        else:
+            print("Failed to send data after multiple attempts.")
     
     except ValueError as e:
         print(f"Failed to send data: {e}")
@@ -133,18 +145,45 @@ def data_processing():
         time.sleep(60)
 
 def handle_display():
+    image_display_end_time = None
+    current_image = None
+
     while True:
+        current_time = time.time()
+
+        # Check if there's a new image to display
         if not display_queue.empty():
             status, image = display_queue.get()
             screen.fill((255, 255, 255))  # Clear the screen with white background
+
             if image:
-                screen.blit(image, (0, 0))
+                current_image = image
+                image_display_end_time = current_time + 10  # Set end time for image display
+                print(f"Image display start time: {current_time}")
+                print(f"Image display end time: {image_display_end_time}")
             else:
-                if status == 'dry':
-                    screen.blit(dry_icon, (0, 0))
-                else:
-                    screen.blit(wet_icon, (0, 0))
-            pygame.display.update()
+                if current_image is None:
+                    if status == 'dry':
+                        screen.blit(dry_icon, (0, 0))
+                    else:
+                        screen.blit(wet_icon, (0, 0))
+                    pygame.display.update()
+
+        # Continue displaying the current image if the time has not elapsed
+        if current_image and image_display_end_time:
+            if current_time < image_display_end_time:
+                screen.fill((255, 255, 255))  # Clear the screen with white background
+                screen.blit(current_image, (0, 0))
+                pygame.display.update()
+                print(f"Displaying image. Current time: {current_time}")
+            else:
+                print(f"Time exceeded. Current time: {current_time}")
+                current_image = None  # Reset the current image after 60 seconds
+                image_display_end_time = None
+
+        time.sleep(1)  # Sleep for a short time to reduce CPU usage
+
+
 
 
 def iot_message_listener():
@@ -153,19 +192,50 @@ def iot_message_listener():
 
     def message_handler(message):
         try:
-            message_data = json.loads(message.data)
+            # Log received message for debugging
+            print(f"Received message: {message.data}")
+            
+            # Check if the message data is not empty
+            if not message.data:
+                print("Received empty message.")
+                return
+
+            # Strip any leading/trailing whitespace and parse the JSON data
+            message_str = message.data.decode('utf-8').strip()
+            print(f"Stripped message: {message_str}")
+            
+            message_data = json.loads(message_str)
+            print(f"Parsed message data: {message_data}")
+
             image_url = message_data.get('image_url')
             if image_url:
+                print(f"Fetching image from URL: {image_url}")
                 response = requests.get(image_url)
                 image = pygame.image.load(BytesIO(response.content))
                 image = pygame.transform.scale(image, (display_width, display_height))
                 display_queue.put((None, image))
+        except json.JSONDecodeError as e:
+            print(f"Failed to decode JSON from message data: {e}")
         except Exception as e:
             print(f"Failed to process message: {e}")
 
     client.on_message_received = message_handler
-    client.connect()
 
+    while True:
+        try:
+            client.connect()
+            print("Client connected to IoT Hub.")
+            while True:
+                time.sleep(1)  # Keep the thread alive to listen for messages
+        except (exceptions.ConnectionDroppedError, exceptions.ClientError) as e:
+            print(f"Connection error: {e}. Retrying connection...")
+            time.sleep(10)
+        except KeyboardInterrupt:
+            print("Receiving messages stopped.")
+            break
+        finally:
+            if client.connected:
+                client.shutdown()
 
 def main():
     # Start the background thread for data processing
@@ -182,7 +252,6 @@ def main():
     iot_listener_thread = threading.Thread(target=iot_message_listener)
     iot_listener_thread.daemon = True
     iot_listener_thread.start()
-
 
     try:
         running = True
@@ -203,4 +272,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
