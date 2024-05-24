@@ -8,7 +8,8 @@ import io
 from azure.storage.blob import BlobServiceClient, BlobClient
 import psycopg2
 from datetime import datetime
-from azure.iot.device import IoTHubDeviceClient, Message
+from azure.iot.device import Message
+from azure.iot.hub import IoTHubRegistryManager
 
 app = func.FunctionApp()
 
@@ -21,7 +22,7 @@ def dataProcess(azeventhub: func.EventHubEvent):
     # Decode the message and convert from JSON
     message_body = azeventhub.get_body().decode('utf-8')
     data = json.loads(message_body)
-    
+
     # Check if the required keys are present to avoid loops
     if 'signal_data' not in data or 'soil_moisture' not in data:
         logging.warning("The message does not contain required fields 'signal_data' and 'soil_moisture'. Ignoring this message.")
@@ -101,33 +102,26 @@ def store_in_postgresql(index, signal_data, soil_moisture, standard_plot_url, ar
 
 def send_image_to_raspberry_pi(image_url):
     IOTHUB_CONNECTION_STRING = os.getenv("IOT_SEND_DATA_CONNECTION_STRING")
+    DEVICE_ID = "IoTDevice1"  # Make sure to use the correct device ID
 
     if not IOTHUB_CONNECTION_STRING:
-        raise ValueError("IOTHUB_CONNECTION_STRING is not set or is empty.")
+        raise ValueError("IOT_SEND_DATA_CONNECTION_STRING is not set or is empty.")
 
     try:
-        # Create the IoT Hub client
-        client = IoTHubDeviceClient.create_from_connection_string(IOTHUB_CONNECTION_STRING)
-        
-        # Connect the client
-        client.connect()
-        logging.info("Client connected to IoT Hub.")
+        # Create the IoT Hub registry manager
+        registry_manager = IoTHubRegistryManager(IOTHUB_CONNECTION_STRING)
 
         # Create the message
-        message = Message(json.dumps({'image_url': image_url}))
+        message_data = {'image_url': image_url}
+        message_json = json.dumps(message_data).strip()  # Ensure JSON is well-formatted
+        message = Message(message_json)
         message.content_encoding = "utf-8"
         message.content_type = "application/json"
 
-        # Send the message
-        logging.info(f"Sending message: {message}")
-        client.send_message(message)
+        # Send the message to the specified device
+        logging.info(f"Sending message to device {DEVICE_ID}: {message}")
+        registry_manager.send_c2d_message(DEVICE_ID, message)
         logging.info("Message successfully sent to IoT Hub")
 
     except Exception as e:
         logging.error(f"Failed to send image URL to Raspberry Pi: {e}")
-
-    finally:
-        # Ensure the client is disconnected properly
-        if client.connected:
-            client.disconnect()
-            logging.info("Client disconnected from IoT Hub")
