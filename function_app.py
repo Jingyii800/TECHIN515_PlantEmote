@@ -101,26 +101,28 @@ def store_in_postgresql(index, signal_data, soil_moisture, standard_plot_url, ar
     logging.info("Data and URLs stored in PostgreSQL database.")
 
 def send_image_to_raspberry_pi(image_url):
-    IOTHUB_CONNECTION_STRING = os.getenv("IOT_SEND_DATA_CONNECTION_STRING")
+    IOTHUB_SEND_CONNECTION_STRING = os.getenv("IOT_SEND_DATA_CONNECTION_STRING")
     DEVICE_ID = "IoTDevice1"  # Make sure to use the correct device ID
 
-    if not IOTHUB_CONNECTION_STRING:
+    if not IOTHUB_SEND_CONNECTION_STRING:
         raise ValueError("IOT_SEND_DATA_CONNECTION_STRING is not set or is empty.")
 
     try:
         # Create the IoT Hub registry manager
-        registry_manager = IoTHubRegistryManager(IOTHUB_CONNECTION_STRING)
+        registry_manager = IoTHubRegistryManager(IOTHUB_SEND_CONNECTION_STRING)
 
         # Create the message
         message_data = {'image_url': image_url}
         message_json = json.dumps(message_data).strip()  # Ensure JSON is well-formatted
-        message = Message(message_json)
-        message.content_encoding = "utf-8"
-        message.content_type = "application/json"
+        logging.info(f"Formatted message JSON: {message_json}")
+        
+        props = {
+            "contentType": "application/json"
+        }
 
         # Send the message to the specified device
-        logging.info(f"Sending message to device {DEVICE_ID}: {message}")
-        registry_manager.send_c2d_message(DEVICE_ID, message)
+        logging.info(f"Sending message to device {DEVICE_ID}: {message_json}")
+        registry_manager.send_c2d_message(DEVICE_ID, message_json, properties=props)
         logging.info("Message successfully sent to IoT Hub")
 
     except Exception as e:
