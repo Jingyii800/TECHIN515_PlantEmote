@@ -63,6 +63,8 @@ def generate_plot(data, sample_rate):
     plt.ylim(0, 1000)  # Set y-axis limits
     plt.xlabel('Time (seconds)')
     plt.ylabel('Amplitude')
+    plt.gca().spines['top'].set_color('none')
+    plt.gca().spines['right'].set_color('none')
     plt.gca().spines['left'].set_color('#E4EFE1')
     plt.gca().spines['bottom'].set_color('#E4EFE1')
     plt.gca().patch.set_alpha(0)  # Set background to transparent
