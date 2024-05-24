@@ -21,6 +21,12 @@ def dataProcess(azeventhub: func.EventHubEvent):
     # Decode the message and convert from JSON
     message_body = azeventhub.get_body().decode('utf-8')
     data = json.loads(message_body)
+    
+    # Check if the required keys are present to avoid loops
+    if 'signal_data' not in data or 'soil_moisture' not in data:
+        logging.warning("The message does not contain required fields 'signal_data' and 'soil_moisture'. Ignoring this message.")
+        return
+    
     signal_data = np.array(data['signal_data'])
     soil_moisture = data['soil_moisture']
     sample_rate = data.get('sample_rate', 1000)
