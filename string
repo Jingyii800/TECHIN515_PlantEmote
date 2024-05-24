@@ -1,1 +1,3 @@
 HostName=PlantEmote1.azure-devices.net;DeviceId=Device1;SharedAccessKey=sC7GZUGp3D7kEqVbyjHb0K45nN6YXWpD6qFjtlRF8HU=
+HostName=PlantEmot.azure-devices.net;DeviceId=IoTDevice1;SharedAccessKey=qa8Fn6cRYs+CfBleDLRhdLB1t/LmUF/1BAIoTFqnrmA=
+HostName=PlantEmot.azure-devices.net;SharedAccessKeyName=iothubowner;SharedAccessKey=nJD4Sl3l1q4ozB7yW2qFjNprworv8DR0jAIoTOg75ME=

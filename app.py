@@ -1,10 +1,15 @@
-import pygame
-import pyaudio
+import threading
+import serial
+import time
 import numpy as np
-from scipy.signal import butter, lfilter
 from azure.iot.device import IoTHubDeviceClient, Message
 import json
-import threading
+import pygame
+import RPi.GPIO as GPIO
+from queue import Queue
+import requests
+from io import BytesIO
+
 
 # Initialize Pygame
 pygame.init()
@@ -14,70 +19,188 @@ display_width = 1920
 display_height = 1100
 screen = pygame.display.set_mode((display_width, display_height))
 
+# Load and scale icons
+dry_icon = pygame.image.load('dry.png')
+wet_icon = pygame.image.load('wet.png')
+dry_icon = pygame.transform.scale(dry_icon, (display_width, display_height))
+wet_icon = pygame.transform.scale(wet_icon, (display_width, display_height))
+
+# Communication queue for display updates
+display_queue = Queue()
+
+# Configuration parameters
+port = '/dev/ttyACM0'  # Update with the correct serial port
+baud_rate = 230400  # Set baud rate
+duration = 10  # Duration to read data in seconds
+
 # Azure IoT Hub Configuration
-CONNECTION_STRING = "HostName=PlantEmot.azure-devices.net;DeviceId=IoTDevice1;SharedAccessKey=your_shared_access_key_here"
+CONNECTION_STRING = "HostName=PlantEmot.azure-devices.net;DeviceId=IoTDevice1;SharedAccessKey=qa8Fn6cRYs+CfBleDLRhdLB1t/LmUF/1BAIoTFqnrmA="
 
-# Audio Configuration
-FORMAT = pyaudio.paInt16
-CHANNELS = 1
-RATE = 44100  # Sample rate
-CHUNK = 1024  # Samples per frame
+# Soil Moisture Sensor Configuration
+GPIO.setmode(GPIO.BCM)
+MOISTURE_SENSOR_PIN = 14
+GPIO.setup(MOISTURE_SENSOR_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
-def butter_highpass(cutoff, fs, order=5):
-    """ Create a highpass filter """
-    nyq = 0.5 * fs
-    normal_cutoff = cutoff / nyq
-    b, a = butter(order, normal_cutoff, btype='high', analog=False)
-    return b, a
+def read_serial_data(port, baud_rate, duration=10):
+    """Read data from the serial port."""
+    try:
+        ser = serial.Serial(port, baud_rate, timeout=1)
+        ser.reset_input_buffer()
 
-def apply_filter(data, cutoff, fs, order=5):
-    """ Apply a highpass filter to the data """
-    b, a = butter_highpass(cutoff, fs, order)
-    filtered_data = lfilter(b, a, data)
-    return filtered_data
+        # Send configuration command to the device
+        ser.write(b'conf s:10000;c:1;\n')  # Adjust as necessary based on device requirements
+        time.sleep(0.5)  # Give time for the device to respond
 
-def send_data_to_azure(filtered_data):
-    """ Send filtered audio data to Azure IoT Hub """
-    client = IoTHubDeviceClient.create_from_connection_string(CONNECTION_STRING)
-    data_json = json.dumps({'audio_data': filtered_data.tolist()})
-    message = Message(data_json)
-    message.content_encoding = "utf-8"
-    message.content_type = "application/json"
-    client.send_message(message)
-    print("Data sent to Azure IoT Hub")
-    client.disconnect()
+        data = bytearray()
+        start_time = time.time()
+
+        # Collect data for approximately 10 seconds
+        while time.time() - start_time < duration:
+            size = ser.in_waiting
+            if size:
+                data.extend(ser.read(size))
+            time.sleep(0.1)
+
+        # Close the serial port
+        ser.close()
+
+        # Process the data
+        result = []
+        i = 0
+        while i < len(data) - 1:
+            if data[i] > 127:
+                int_out = ((data[i] & 127) << 7)
+                i += 1
+                int_out += data[i]
+                result.append(int_out)
+            i += 1
+
+        # Convert result to a numpy array
+        result_array = np.array(result)
+
+        return result_array
+    
+    except serial.SerialException as e:
+        print(f"Error reading from serial port: {e}")
+        return np.array([])
+
+def send_data_to_azure(signal_data, soil_moisture, downsample_factor=100):
+    """Send signal and soil moisture data to Azure IoT Hub in chunks."""
+    try:
+        client = IoTHubDeviceClient.create_from_connection_string(CONNECTION_STRING)
+
+        # Downsample the data
+        downsampled_data = signal_data[::downsample_factor]
+        data_list = downsampled_data.tolist()
+        
+        data_json = json.dumps({
+            'signal_data': data_list,
+            'soil_moisture': soil_moisture
+        })
+        
+        message = Message(data_json)
+        message.content_encoding = "utf-8"
+        message.content_type = "application/json"
+        
+        client.send_message(message)
+        print("Data sent to Azure IoT Hub")
+    
+    except ValueError as e:
+        print(f"Failed to send data: {e}")
+    
+    finally:
+        client.disconnect()
+
+def update_display():
+    while True:
+        is_dry = GPIO.input(MOISTURE_SENSOR_PIN)
+        display_queue.put(('dry' if is_dry else 'wet', None))
+        time.sleep(1)  # Update every second
 
 def data_processing():
-    p = pyaudio.PyAudio()
-    stream = p.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK, input_device_index=2)
-    buffer = []
+    """Background thread for data processing."""
+    while True:
+        # Read soil moisture sensor once
+        is_dry = GPIO.input(MOISTURE_SENSOR_PIN)
+
+        # Read serial data
+        signal_data = read_serial_data(port, baud_rate)
+
+        # Send data to Azure IoT Hub
+        send_data_to_azure(signal_data, 'dry' if is_dry else 'wet')        
+        
+        # Rest for 1 minute
+        time.sleep(60)
+
+def handle_display():
+    while True:
+        if not display_queue.empty():
+            status, image = display_queue.get()
+            screen.fill((255, 255, 255))  # Clear the screen with white background
+            if image:
+                screen.blit(image, (0, 0))
+            else:
+                if status == 'dry':
+                    screen.blit(dry_icon, (0, 0))
+                else:
+                    screen.blit(wet_icon, (0, 0))
+            pygame.display.update()
+
+
+def iot_message_listener():
+    """Listener for IoT Hub messages."""
+    client = IoTHubDeviceClient.create_from_connection_string(CONNECTION_STRING)
+
+    def message_handler(message):
+        try:
+            message_data = json.loads(message.data)
+            image_url = message_data.get('image_url')
+            if image_url:
+                response = requests.get(image_url)
+                image = pygame.image.load(BytesIO(response.content))
+                image = pygame.transform.scale(image, (display_width, display_height))
+                display_queue.put((None, image))
+        except Exception as e:
+            print(f"Failed to process message: {e}")
+
+    client.on_message_received = message_handler
+    client.connect()
+
+
+def main():
+    # Start the background thread for data processing
+    data_thread = threading.Thread(target=data_processing)
+    data_thread.daemon = True  # Ensure the thread exits when the main program exits
+    data_thread.start()
+
+    # Start the thread for real-time soil moisture display updates
+    display_thread = threading.Thread(target=update_display)
+    display_thread.daemon = True
+    display_thread.start()
+
+    # Start the thread for IoT message listening
+    iot_listener_thread = threading.Thread(target=iot_message_listener)
+    iot_listener_thread.daemon = True
+    iot_listener_thread.start()
+
+
     try:
-        while True:
-            frames = np.frombuffer(stream.read(CHUNK), dtype=np.int16)
-            buffer.append(frames)
-            if len(buffer) * CHUNK / RATE >= 10:  # Collect 10 seconds of data
-                all_frames = np.concatenate(buffer)
-                filtered_data = apply_filter(all_frames, cutoff=200, fs=RATE, order=2)
-                send_data_to_azure(filtered_data)
-                buffer = []  # Clear buffer after sending
-    finally:
-        stream.close()
-        p.terminate()
-
-# Start the background thread
-thread = threading.Thread(target=data_processing)
-thread.start()
-
-# Main thread for Pygame
-try:
-    running = True
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
+        running = True
+        while running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
                     running = False
-finally:
-    pygame.quit()
-    thread.join()
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        running = False
+
+            # Handle Pygame display updates
+            handle_display()
+
+    finally:
+        pygame.quit()
+        GPIO.cleanup()
+
+if __name__ == "__main__":
+    main()
+
