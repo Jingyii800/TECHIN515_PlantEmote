@@ -64,10 +64,10 @@ def generate_plot(data, sample_rate):
     plt.ylabel('Amplitude')
     
     ax = plt.gca()
-    ax.spines['top'].set_color('none')    # Remove top frame line
-    ax.spines['right'].set_color('none')  # Remove right frame line
-    ax.spines['left'].set_color('lightgrey')
-    ax.spines['bottom'].set_color('lightgrey')
+    ax.spines['left'].set_color('#E4EFE1')
+    ax.spines['bottom'].set_color('#E4EFE1')
+    ax.spines['left'].set_color('#E4EFE1')
+    ax.spines['bottom'].set_color('#E4EFE1')
     ax.patch.set_alpha(0)  # Set background to transparent
 
     buffer = io.BytesIO()
