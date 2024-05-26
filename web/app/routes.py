@@ -1,18 +1,12 @@
 from flask import Blueprint, render_template
 import psycopg2
+from .database import get_db_connection
 
 main = Blueprint('main', __name__)
 
-
 @main.route('/')
 def index():
-    conn = psycopg2.connect(
-        user="plant_emot",
-        password="techin515#",  # Replace with your actual password
-        host="plantemotserver.postgres.database.azure.com",
-        port=5432,
-        database="plant_emot"
-    )
+    conn = get_db_connection()
     cur = conn.cursor()
     cur.execute('SELECT soil_moisture, standard_plot_url, artistic_image_url FROM telemetry_data ORDER BY index DESC LIMIT 1;')
     #cur.execute('SELECT * FROM telemetry_data ORDER BY index DESC LIMIT 1;')
