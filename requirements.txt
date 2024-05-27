@@ -6,3 +6,6 @@ azure-storage-blob
 matplotlib
 numpy
 psycopg2-binary
+azure-iot-hub
+azure-iot-device
+python-dotenv

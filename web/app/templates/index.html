@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PlantEmote</title>
+    <!-- Link to the CSS file -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <!-- Optional: Include Chart.js via CDN if needed for charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header class="main-header">
+        <h1>PlantEmote</h1>
+    </header>
+    <header class="status-header">
+        <h2>I'm Mimosa, <span id="waterStatusText" class="{{ 'wet' if soil_moisture == 'wet' else 'dry' }}">{{ 'I feel good' if soil_moisture == 'wet' else 'I am dry now' }}</span> .</h2>
+    </header>
+    <main>
+        <div class="gallery">
+           <div class="chart">
+               <img src="{{ plot_url }}" alt="Electrophysiological Signal Chart">
+               <div class="image-description">Mimosa's Electrophysiological Signal</div>
+           </div>
+           <div class="art-image">
+               <img src="{{ image_url }}" alt="Artistic Image of Mimosa">
+               <div class="image-description">Mimosa's Artistic Creation</div>
+           </div>
+       </div> 
+   </main>
+    <!-- Link to your JavaScript file -->
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
+
