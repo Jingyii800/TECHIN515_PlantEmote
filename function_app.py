@@ -65,7 +65,7 @@ def generate_plot(data, sample_rate):
     plt.plot(time_vector, data, color='darkgreen')
     plt.ylim(0, 1000)  # Set y-axis limits
     plt.xlabel('Time (seconds)')
-    plt.ylabel('Amplitude')
+    plt.ylabel('Sensitivity Strength (Higher means stronger reaction)')
     plt.gca().spines['top'].set_color('none')
     plt.gca().spines['right'].set_color('none')
     plt.gca().spines['left'].set_color('#E4EFE1')
@@ -82,8 +82,10 @@ def generate_artistic_image(data):
     data_normalized[data <= 600] = (data[data <= 600] - 400) / (600 - 400)
     data_normalized[data > 600] = 1 + (data[data > 600] - 600) / (data.max() - 600)
 
-    # Set up the plot
-    fig, ax = plt.subplots()
+    # Set up the plot with the specified size
+    display_width = 1920
+    display_height = 1100
+    fig, ax = plt.subplots(figsize=(display_width / 100, display_height / 100))
     ax.set_xlim(0, 100)
     ax.set_ylim(0, 100)
     ax.set_aspect('equal')
@@ -138,7 +140,7 @@ def generate_artistic_image(data):
 
     # Save plot to buffer
     buffer = io.BytesIO()
-    plt.savefig(buffer, format='png')
+    plt.savefig(buffer, format='png', transparent=True)
     buffer.seek(0)
     return buffer
 
