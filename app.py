@@ -14,8 +14,8 @@ from io import BytesIO
 pygame.init()
 
 # Set the display size
-display_width = 1920
-display_height = 1100
+# Set the display to full screen with specified size
+display_width, display_height = 1920, 1100
 screen = pygame.display.set_mode((display_width, display_height))
 
 # Load and scale icons
