@@ -87,5 +87,6 @@ ax.add_collection(p)
 ax.set_axis_off()
 
 
-# Display plot
+# Display plot without transparent borders
+fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
 plt.show()

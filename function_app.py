@@ -140,7 +140,7 @@ def generate_artistic_image(data):
 
     # Save plot to buffer
     buffer = io.BytesIO()
-    plt.savefig(buffer, format='png', transparent=True)
+    plt.savefig(buffer, format='png', bbox_inches='tight', pad_inches=0)
     buffer.seek(0)
     return buffer
 
