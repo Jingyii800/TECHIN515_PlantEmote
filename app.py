@@ -23,6 +23,8 @@ dry_icon = pygame.image.load('dry.png')
 wet_icon = pygame.image.load('wet.png')
 dry_icon = pygame.transform.scale(dry_icon, (display_width, display_height))
 wet_icon = pygame.transform.scale(wet_icon, (display_width, display_height))
+initial_text = "Touch me to help me painting"
+painting_text = "Wait! I am painting"
 
 # Communication queue for display updates
 display_queue = Queue()
@@ -83,6 +85,81 @@ def read_serial_data(port, baud_rate, duration=10):
         print(f"Error reading from serial port: {e}")
         return np.array([])
 
+def update_display():
+    while True:
+        is_dry = GPIO.input(MOISTURE_SENSOR_PIN)
+        display_queue.put(('dry' if is_dry else 'wet', None))
+        time.sleep(1)  # Update every second
+
+def data_processing():
+    """Background thread for data processing."""
+    while True:
+        # Read soil moisture sensor once
+        is_dry = GPIO.input(MOISTURE_SENSOR_PIN)
+
+        # Read serial data
+        signal_data = read_serial_data(port, baud_rate)
+
+        # Send data to Azure IoT Hub
+        send_data_to_azure(signal_data, 'dry' if is_dry else 'wet')        
+        
+        # Rest for 1 minute
+        time.sleep(60)
+
+def handle_display():
+    image_display_end_time = None
+    current_image = None
+
+    current_text = initial_text
+    font = pygame.font.SysFont(None, 48)
+    
+    while True:
+        current_time = time.time()
+
+        # Check if there's a new image to display
+        if not display_queue.empty():
+            status, image = display_queue.get()
+            screen.fill((255, 255, 255))  # Clear the screen with white background
+
+            if image:
+                current_image = image
+                image_display_end_time = current_time + 10  # Set end time for image display
+                current_text = initial_text  # Reset to initial text when an image is received
+                print(f"Image display start time: {current_time}")
+                print(f"Image display end time: {image_display_end_time}")
+            else:
+                if current_image is None:
+                    if status == 'dry':
+                        screen.blit(dry_icon, (0, 0))
+                    else:
+                        screen.blit(wet_icon, (0, 0))
+                    pygame.display.update()
+
+        # Continue displaying the current image if the time has not elapsed
+        if current_image and image_display_end_time:
+            if current_time < image_display_end_time:
+                screen.fill((255, 255, 255))  # Clear the screen with white background
+                screen.blit(current_image, (0, 0))
+                pygame.display.update()
+                print(f"Displaying image. Current time: {current_time}")
+            else:
+                print(f"Time exceeded. Current time: {current_time}")
+                current_image = None  # Reset the current image after 60 seconds
+                image_display_end_time = None
+
+        # Display the current text if no image is being displayed
+        if current_image is None:
+            screen.fill((255, 255, 255))  # Clear the screen with white background
+            if status == 'dry':
+                screen.blit(dry_icon, (0, 0))
+            else:
+                screen.blit(wet_icon, (0, 0))
+            text_surface = font.render(current_text, True, (0, 0, 0))
+            screen.blit(text_surface, (10, 10))
+            pygame.display.update()
+
+        time.sleep(1)  # Sleep for a short time to reduce CPU usage
+
 def send_data_to_azure(signal_data, soil_moisture, downsample_factor=100):
     """Send signal and soil moisture data to Azure IoT Hub in chunks."""
     client = IoTHubDeviceClient.create_from_connection_string(CONNECTION_STRING)
@@ -109,6 +186,7 @@ def send_data_to_azure(signal_data, soil_moisture, downsample_factor=100):
             try:
                 client.send_message(message)
                 print("Data sent to Azure IoT Hub")
+                display_queue.put((None, painting_text))  # Update the text after sending data
                 break  # Exit the retry loop if the message is sent successfully
             except (exceptions.ConnectionDroppedError, exceptions.ClientError) as e:
                 retries += 1
@@ -122,68 +200,6 @@ def send_data_to_azure(signal_data, soil_moisture, downsample_factor=100):
     
     finally:
         client.disconnect()
-
-def update_display():
-    while True:
-        is_dry = GPIO.input(MOISTURE_SENSOR_PIN)
-        display_queue.put(('dry' if is_dry else 'wet', None))
-        time.sleep(1)  # Update every second
-
-def data_processing():
-    """Background thread for data processing."""
-    while True:
-        # Read soil moisture sensor once
-        is_dry = GPIO.input(MOISTURE_SENSOR_PIN)
-
-        # Read serial data
-        signal_data = read_serial_data(port, baud_rate)
-
-        # Send data to Azure IoT Hub
-        send_data_to_azure(signal_data, 'dry' if is_dry else 'wet')        
-        
-        # Rest for 1 minute
-        time.sleep(60)
-
-def handle_display():
-    image_display_end_time = None
-    current_image = None
-
-    while True:
-        current_time = time.time()
-
-        # Check if there's a new image to display
-        if not display_queue.empty():
-            status, image = display_queue.get()
-            screen.fill((255, 255, 255))  # Clear the screen with white background
-
-            if image:
-                current_image = image
-                image_display_end_time = current_time + 10  # Set end time for image display
-                print(f"Image display start time: {current_time}")
-                print(f"Image display end time: {image_display_end_time}")
-            else:
-                if current_image is None:
-                    if status == 'dry':
-                        screen.blit(dry_icon, (0, 0))
-                    else:
-                        screen.blit(wet_icon, (0, 0))
-                    pygame.display.update()
-
-        # Continue displaying the current image if the time has not elapsed
-        if current_image and image_display_end_time:
-            if current_time < image_display_end_time:
-                screen.fill((255, 255, 255))  # Clear the screen with white background
-                screen.blit(current_image, (0, 0))
-                pygame.display.update()
-                print(f"Displaying image. Current time: {current_time}")
-            else:
-                print(f"Time exceeded. Current time: {current_time}")
-                current_image = None  # Reset the current image after 60 seconds
-                image_display_end_time = None
-
-        time.sleep(1)  # Sleep for a short time to reduce CPU usage
-
-
 
 
 def iot_message_listener():

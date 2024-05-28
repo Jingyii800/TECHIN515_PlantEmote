@@ -103,7 +103,7 @@ header {
     padding-top: 2rem;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    column-gap: 20px;
+    gap: 20px;
     height: 600px;
 }
 
@@ -128,7 +128,7 @@ header {
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    top: 350px;
+    top: 250px;
 }
 
 .button-container button {
